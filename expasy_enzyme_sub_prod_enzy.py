@@ -2,6 +2,8 @@ import Bio.ExPASy.Enzyme as bee
 import re
 import pprint
 import requests
+import urllib.request
+import sys
 
 __author__ = 'timputman'
 
@@ -15,12 +17,9 @@ def link_compound2chebi(compound):
 
     """
     url = 'http://data.bioontology.org/annotator'
-    params = dict(apikey='8b5b7825-538d-40e0-9e9e-5ab9274a9aeb', text=compound, ontologies='CHEBI', longest_only='true',
+    params = dict(apikey=sys.argv[1], text=compound, ontologies='CHEBI', longest_only='true',
                   include='properties', exlude_numbers='false', exclude_synonyms='false', mappins='all')
-
     tm_results = requests.get(url=url, params=params).json()
-
-
     for i in tm_results:
         prefLabel = i['annotatedClass']['properties']['http://data.bioontology.org/metadata/def/prefLabel']
         text_input = i['annotations'][0]['text']
@@ -44,45 +43,60 @@ def replace_strings(compound):
             return compound
 
 
-enzyme = open('enzyme.dat', 'r')
-enzyme_p = bee.parse(enzyme)
-enz_rec= {}
-count = 0
+def get_expasy_enzyme():
+    """
 
-# use Bio.Expasy.enzyme to parse enzyme.dat record from ISB expasy enzyme
-for record in enzyme_p:
-    count += 1
+    """
+    url = "ftp://ftp.expasy.org/databases/enzyme/enzyme.dat"
+    enzyme = urllib.request.urlretrieve(url)
+    enzyme_p = bee.parse(open(enzyme[0], 'r'))
+    enz_records = []
+    count = 0
+    for record in enzyme_p:
+        count += 1
+    
+        enz_rec = {}
+        enz_rec['Reaction(s)'] = record['CA']
+        #create record for each enzyme with EC number as primary key
+        enz_rec['PreferedName'] = record['DE']
+        enz_rec['ECNumber'] = record['ID']
+        enz_rec['Reaction(s)'] = []
+        enz_rec['Substrates'] = {}
+        enz_rec['Products'] = {}
+        enz_rec['UniProt'] = {}
+        enz_records.append(enz_rec)
 
-    #create record for each enzyme with EC number as primary key
-    enz_rec['PreferedName'] = record['DE']
-    enz_rec['ECNumber'] = record['ID']
-    enz_rec['Reaction(s)'] = []
-    enz_rec['Substrates'] = {}
-    enz_rec['Products'] = {}
-    enz_rec['UniProt'] = {}
-    # split split to seperate multiple reactions
-    reaction1 = record['CA'].split('.')
+        # split split to seperate multiple reactions
+        reaction1 = record['CA'].split('.')
+        for rxn in reaction1:
+            if len(reaction1) > 2:
+                rxn = rxn[3:]
+            enz_rec['Reaction(s)'].append(rxn)
+            #split reactions into [substrates, products]
+            constituents = rxn.split('=')
+            # split each side of reaction on '+' not '(+)'
+            r = re.compile(r'(?:[^\+(]|\([^)]*\))+')
+            for sub in r.findall(constituents[0]):
+                sub = replace_strings(sub.lstrip().rstrip())
+                schebi = link_compound2chebi(sub)
+                enz_rec['Substrates'][sub] = schebi
 
-    for rxn in reaction1:
-        if len(reaction1) > 2:
-            rxn = rxn[3:]
-        enz_rec['Reaction(s)'].append(rxn)
-        #split reactions into [substrates, products]
-        constituents = rxn.split('=')
-        # split each side of reaction on '+' not '(+)'
-        r = re.compile(r'(?:[^\+(]|\([^)]*\))+')
-        for sub in r.findall(constituents[0]):
-            sub = replace_strings(sub.lstrip().rstrip())
-            schebi = link_compound2chebi(sub)
-            enz_rec['Substrates'][sub] = schebi
+            for prod in r.findall(constituents[-1]):
+                prod = replace_strings(prod.lstrip().rstrip())
+                pchebi = link_compound2chebi(prod)
+                enz_rec['Products'][prod] = pchebi
 
-        for prod in r.findall(constituents[-1]):
-            prod = replace_strings(prod.lstrip().rstrip())
-            pchebi = link_compound2chebi(prod)
-            enz_rec['Products'][prod] = pchebi
+                # populate enz_rec['UniProt'] with dictionary of uniprotid:name key, value pairs for protein
+            for unpid in record['DR']:
+                enz_rec['UniProt'][unpid[0]] = unpid[1]
+        enz_records.append(enz_rec)
 
-            # populate enz_rec['UniProt'] with dictionary of uniprotid:name key, value pairs for protein
-        for unpid in record['DR']:
-            enz_rec['UniProt'][unpid[0]] = unpid[1]
-    print(count)
-    print(enz_rec, file=enzyme_out)
+    return enz_records
+
+
+
+
+
+expasy = get_expasy_enzyme()
+pprint.pprint(expasy)
+
