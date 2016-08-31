@@ -71,19 +71,20 @@ def get_expasy_enzyme():
     count = 0
     tester = []
     for record in enzyme_p:
-        if count < 20:
-            enz_rec = {}
-            count += 1
-            enz_rec['ECNumber'] = record['ID']
-            enz_rec['Reaction(s)'] = []
-            enz_rec['Substrates'] = {}
-            enz_rec['Products'] = {}
-            #enz_records.append(enz_rec)
+        enz_rec = {}
+        count += 1
+        print(count)
+        enz_rec['ECNumber'] = record['ID']
+        enz_rec['Reaction(s)'] = []
+        enz_rec['Substrates'] = {}
+        enz_rec['Products'] = {}
+        #enz_records.append(enz_rec)
 
-            # split split to seperate multiple reactions
-            reaction1 = record['CA'].split('.')
+        # split split to seperate multiple reactions
+        reaction1 = record['CA'].split('.')
 
-            for rxn in reaction1:
+        for rxn in reaction1:
+            try:
                 if len(reaction1) > 2:
                     rxn = rxn[3:]
                 enz_rec['Reaction(s)'].append(rxn)
@@ -108,8 +109,11 @@ def get_expasy_enzyme():
                     enz_rec['Products'][prod] = pchebi
                     if pchebi:
                         chebi_list.append(pchebi)
+            except Exception as e:
+                print(e)
+                continue
 
-            enz_records.append(enz_rec)
+        enz_records.append(enz_rec)
     print(chebi_list, file=chebiout)
     print(enz_records, file=annotations)
     return enz_records
