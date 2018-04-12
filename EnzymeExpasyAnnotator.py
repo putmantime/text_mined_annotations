@@ -11,7 +11,7 @@ __author__ = 'timputman'
 
 enzyme_out = open('enz_out.txt', 'w')
 
-api_key = '0a99c359-d2a2-483a-8dca-148c3bb4e8c1'
+api_key = 'xxxx'
 
 
 def link_compound2chebi(compound):
